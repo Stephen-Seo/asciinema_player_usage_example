@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+
+<!--
+ISC License
+
+Copyright (c) 2026 Stephen Seo
+
+Permission to use, copy, modify, and/or distribute this software for any
+purpose with or without fee is hereby granted, provided that the above
+copyright notice and this permission notice appear in all copies.
+
+THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES WITH
+REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY
+AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY SPECIAL, DIRECT,
+INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES WHATSOEVER RESULTING FROM
+LOSS OF USE, DATA OR PROFITS, WHETHER IN AN ACTION OF CONTRACT, NEGLIGENCE OR
+OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
+PERFORMANCE OF THIS SOFTWARE.
+
+Contact me at:
+seo.disparate@gmail.com
+sseo6@alumni.jh.edu
+stephen@seodisparate.com
+-->
+<head>
+  <link rel="stylesheet" type="text/css" href="/asciinema_player_latest/asciinema-player.css" />
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+    }
+    div#demo {
+      width: 100vw;
+      height: 100vh;
+    }
+  </style>
+</head>
+<body>
+  <div id="demo"></div>
+  <script src="/asciinema_player_latest/asciinema-player.min.js"></script>
+  <script src="/pako_latest/pako.min.js"></script>
+  <script>
+    "use strict";
+
+    async function fetch_and_ungzip_demo(path) {
+      try {
+        const response = await fetch(path);
+        if (!response.ok) {
+          throw new Error(`Response status: ${response.status}`);
+        }
+
+        const data = await response.bytes();
+
+        //console.log("Inflating...");
+
+        const inflate = new pako.Inflate({to: "string"});
+
+        inflate.push(data, true);
+        if (inflate.err) { throw new Error(inflate.err); }
+
+        //console.log("Inflated.");
+        //console.log(inflate.result);
+
+        return inflate.result;
+      } catch (error) {
+        consoe.error(error.message);
+      }
+    }
+
+    AsciinemaPlayer.create({data: fetch_and_ungzip_demo('/demo.cast.gz')}, document.getElementById('demo'), {"fit": "both"});
+  </script>
+</body>
+</html>
