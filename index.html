@@ -24,7 +24,7 @@ sseo6@alumni.jh.edu
 stephen@seodisparate.com
 -->
 <head>
-  <link rel="stylesheet" type="text/css" href="/asciinema_player_latest/asciinema-player.css" />
+  <link rel="stylesheet" type="text/css" href="asciinema_player_latest/asciinema-player.css" />
   <style>
     body {
       margin: 0;
@@ -38,8 +38,8 @@ stephen@seodisparate.com
 </head>
 <body>
   <div id="demo"></div>
-  <script src="/asciinema_player_latest/asciinema-player.min.js"></script>
-  <script src="/pako_latest/pako.min.js"></script>
+  <script src="asciinema_player_latest/asciinema-player.min.js"></script>
+  <script src="pako_latest/pako.min.js"></script>
   <script>
     "use strict";
 
@@ -68,7 +68,7 @@ stephen@seodisparate.com
       }
     }
 
-    AsciinemaPlayer.create({data: fetch_and_ungzip_demo('/demo.cast.gz')}, document.getElementById('demo'), {"fit": "both"});
+    AsciinemaPlayer.create({data: fetch_and_ungzip_demo('demo.cast.gz')}, document.getElementById('demo'), {"fit": "both"});
   </script>
 </body>
 </html>
