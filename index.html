@@ -164,8 +164,10 @@ lzip is GPL2, so GPL3 used.
                   }
                 }
 
-                const str = Module.UTF8ToString(output_buf, read_ret, true);
-                output_text = output_text.concat(str);
+                if (read_ret > 0) {
+                  const str = Module.UTF8ToString(output_buf, read_ret, true);
+                  output_text = output_text.concat(str);
+                }
               }
             }
           }
