@@ -2,6 +2,26 @@
 <html>
 
 <!--
+    Copyright (C) 2026 Stephen Seo
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+https://choosealicense.com/licenses/gpl-2.0/
+
+
+
 ISC License
 
 Copyright (c) 2026 Stephen Seo
@@ -22,6 +42,8 @@ Contact me at:
 seo.disparate@gmail.com
 sseo6@alumni.jh.edu
 stephen@seodisparate.com
+
+lzip is GPL2, so GPL2 is one of the licenses listed above.
 -->
 <head>
   <link rel="stylesheet" type="text/css" href="asciinema_player_latest/asciinema-player.css" />
@@ -39,11 +61,42 @@ stephen@seodisparate.com
 <body>
   <div id="demo"></div>
   <script src="asciinema_player_latest/asciinema-player.min.js"></script>
-  <script src="pako_latest/pako.min.js"></script>
+  <!--<script src="pako_latest/pako.min.js"></script>-->
+  <script src="lzlib.min.js"></script>
   <script>
     "use strict";
 
-    async function fetch_and_ungzip_demo(path) {
+    //async function fetch_and_ungzip_demo(path) {
+    //  try {
+    //    const response = await fetch(path);
+    //    if (!response.ok) {
+    //      throw new Error(`Response status: ${response.status}`);
+    //    }
+
+    //    const data = await response.bytes();
+
+    //    //console.log("Inflating...");
+
+    //    const inflate = new pako.Inflate({to: "string"});
+
+    //    inflate.push(data, true);
+    //    if (inflate.err) { throw new Error(inflate.err); }
+
+    //    //console.log("Inflated.");
+    //    //console.log(inflate.result);
+
+    //    return inflate.result;
+    //  } catch (error) {
+    //    consoe.error(error.message);
+    //  }
+    //}
+
+    async function fetch_and_unlz_demo(path) {
+      var decoder = Module.ccall('LZ_decompress_open', 'number', [], []);
+
+      let output_text = "";
+      const output_buf_size = 1024 * 4;
+
       try {
         const response = await fetch(path);
         if (!response.ok) {
@@ -51,24 +104,143 @@ stephen@seodisparate.com
         }
 
         const data = await response.bytes();
+        const dataLength = data.length;
+        //console.log("Data length: " + String(dataLength));
 
-        //console.log("Inflating...");
+        //var decompWriteSize = Module.ccall('LZ_decompress_write_size', 'number', ['number'], [decoder]);
+        //console.log("Decomp write size: " + String(decompWriteSize));
+        const decompWriteSize = 1024 * 4;
 
-        const inflate = new pako.Inflate({to: "string"});
+        let input_buf = Module.ccall('malloc', 'number', ['number'], [decompWriteSize]);
+        if (input_buf === 0) {
+          throw new Error("Failed to malloc data input");
+        }
+        let output_buf = Module.ccall('malloc', 'number', ['number'], [output_buf_size]);
+        if (output_buf === 0) {
+          throw new Error("Failed to malloc data output");
+        }
 
-        inflate.push(data, true);
-        if (inflate.err) { throw new Error(inflate.err); }
+        if (decompWriteSize < dataLength) {
 
-        //console.log("Inflated.");
-        //console.log(inflate.result);
+          let input_idx = 0;
 
-        return inflate.result;
+          let writing_to_decomp = true;
+          let reading_from_decomp = true;
+
+          while (writing_to_decomp || reading_from_decomp) {
+            if (writing_to_decomp) {
+              if (dataLength - input_idx < decompWriteSize) {
+                const subslice = data.subarray(input_idx, dataLength);
+                Module.HEAPU8.set(subslice, input_buf);
+
+                let write_ret = Module.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, dataLength - input_idx]);
+                if (write_ret <= 0) {
+                  Module.ccall('free', null, ['number'], [input_buf]);
+                  Module.ccall('free', null, ['number'], [output_buf]);
+                  throw new Error(`Failed to write final data input to decompressor: ${write_ret}`);
+                }
+                writing_to_decomp = false;
+                Module.ccall('LZ_decompress_finish', null, ['number'], [decoder]);
+                console.log("Finished writing to decompressor");
+              } else {
+                const subslice = data.subarray(input_idx, input_idx + decompWriteSize);
+                Module.HEAPU8.set(subslice, input_buf);
+
+                let write_ret = Module.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, decompWriteSize]);
+                if (write_ret <= 0) {
+                  Module.ccall('free', null, ['number'], [input_buf]);
+                  Module.ccall('free', null, ['number'], [output_buf]);
+                  throw new Error(`Failed to write data input to decompressor: ${write_ret}`);
+                }
+                input_idx += write_ret;
+                if (input_idx > dataLength) {
+                  Module.ccall('free', null, ['number'], [input_buf]);
+                  Module.ccall('free', null, ['number'], [output_buf]);
+                  throw new Error(`Invalid state, input_idx is too large: ${input_idx}`);
+                }
+              }
+            }
+
+            if (reading_from_decomp) {
+              if (Module.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
+                reading_from_decomp = false;
+                console.log("Finished reading from decompressor");
+              } else {
+                let read_ret = Module.ccall('LZ_decompress_read', 'number', ['number', 'number', 'number'], [decoder, output_buf, output_buf_size]);
+                if (read_ret < 0) {
+                  Module.ccall('free', null, ['number'], [input_buf]);
+                  Module.ccall('free', null, ['number'], [output_buf]);
+                  const dec_errno = Module.ccall('LZ_decompress_errno', 'number', ['number'], [decoder]);
+                  throw new Error(`Failed to LZ_decompress_read: ${read_ret}, ${dec_errno}`);
+                } else if (read_ret === 0) {
+                  if (Module.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
+                    reading_from_decomp = false;
+                    console.log("Finished reading from decompressor");
+                  } else {
+                    Module.ccall('free', null, ['number'], [input_buf]);
+                    Module.ccall('free', null, ['number'], [output_buf]);
+                    throw new Error('Failed to LZ_decompress_read: zero');
+                  }
+                }
+
+                const str = Module.UTF8ToString(output_buf, read_ret, true);
+                output_text = output_text.concat(str);
+              }
+            }
+          }
+        } else {
+          let input_buf = Module.ccall('malloc', 'number', ['number'], [dataLength]);
+          if (input_buf === 0) {
+            throw new Error("Failed to malloc data input (small)");
+          }
+
+          Module.HEAPU8.set(data, input_buf);
+
+          let write_ret = Module.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, dataLength]);
+          if (write_ret !== dataLength) {
+            Module.ccall('free', null, ['number'], [input_buf]);
+            Module.ccall('free', null, ['number'], [output_buf]);
+            throw new Error(`Failed to write small data input to decompressor: ${write_ret}`);
+          }
+
+          Module.ccall('LZ_decompress_finish', null, ['number'], [decoder]);
+
+          while(true) {
+            let read_ret = Module.ccall('LZ_decompress_read', 'number', ['number', 'number', 'number'], [decoder, output_buf, output_buf_size]);
+            if (read_ret < 0) {
+              Module.ccall('free', null, ['number'], [input_buf]);
+              Module.ccall('free', null, ['number'], [output_buf]);
+              throw new Error(`Failed to LZ_decompress_read (small): ${read_ret}`);
+            } else if (read_ret === 0) {
+              if (Module.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
+                break;
+              } else {
+                Module.ccall('free', null, ['number'], [input_buf]);
+                Module.ccall('free', null, ['number'], [output_buf]);
+                throw new Error('LZ_decompress_finished not one');
+              }
+            }
+
+            const str = Module.UTF8ToString(output_buf, read_ret, true);
+            output_text = output_text.concat(str);
+          }
+        }
+
+        Module.ccall('free', null, ['number'], [input_buf]);
+        Module.ccall('free', null, ['number'], [output_buf]);
       } catch (error) {
-        consoe.error(error.message);
+        console.error(error.message);
       }
+
+      Module.ccall('LZ_decompress_close', 'number', ['number'], [decoder]);
+
+      //console.log(output_text);
+      return output_text;
     }
 
-    AsciinemaPlayer.create({data: fetch_and_ungzip_demo('demo.cast.gz')}, document.getElementById('demo'), {"fit": "both"});
+    Module.onRuntimeInitialized = function() {
+        AsciinemaPlayer.create({data: fetch_and_unlz_demo('demo.cast.lz')}, document.getElementById('demo'), {"fit": "both"});
+    }
   </script>
 </body>
 </html>
