@@ -274,6 +274,12 @@ This library is distributed in the hope that it will be useful, \n\
 but WITHOUT ANY WARRANTY; without even the implied warranty of \n\
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. \n\
 ');
+    console.log('lzlib was compiled with emscripten: \n\
+emcc (Emscripten gcc/clang-like replacement + linker emulating GNU ld) 4.0.23 (7a5d93b50f6a3a35e85a0d2fc9e667b8498e6aed)\n\
+Copyright (C) 2026 the Emscripten authors (see AUTHORS.txt)\n\
+This is free and open source software under the MIT license.\n\
+There is NO warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.\n\
+');
     AsciinemaPlayer.create({data: fetch_and_unlz_demo('demo.cast.lz')}, document.getElementById('demo'), {"fit": "both"});
   </script>
 </body>
