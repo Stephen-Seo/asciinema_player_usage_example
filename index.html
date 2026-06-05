@@ -75,7 +75,9 @@ the license used is chosen to be the ISC License.
     //}
 
     async function fetch_and_unlz_demo(path) {
-      var decoder = Module.ccall('LZ_decompress_open', 'number', [], []);
+      const LZLib = await LZLibModule();
+
+      var decoder = LZLib.ccall('LZ_decompress_open', 'number', [], []);
 
       let output_text = "";
       const output_buf_size = 1024 * 4;
@@ -90,15 +92,15 @@ the license used is chosen to be the ISC License.
         const dataLength = data.length;
         //console.log("Data length: " + String(dataLength));
 
-        //var decompWriteSize = Module.ccall('LZ_decompress_write_size', 'number', ['number'], [decoder]);
+        //var decompWriteSize = LZLib.ccall('LZ_decompress_write_size', 'number', ['number'], [decoder]);
         //console.log("Decomp write size: " + String(decompWriteSize));
         const decompWriteSize = 1024 * 4;
 
-        let input_buf = Module.ccall('malloc', 'number', ['number'], [decompWriteSize]);
+        let input_buf = LZLib.ccall('malloc', 'number', ['number'], [decompWriteSize]);
         if (input_buf === 0) {
           throw new Error("Failed to malloc data input");
         }
-        let output_buf = Module.ccall('malloc', 'number', ['number'], [output_buf_size]);
+        let output_buf = LZLib.ccall('malloc', 'number', ['number'], [output_buf_size]);
         if (output_buf === 0) {
           throw new Error("Failed to malloc data output");
         }
@@ -114,118 +116,117 @@ the license used is chosen to be the ISC License.
             if (writing_to_decomp) {
               if (dataLength - input_idx < decompWriteSize) {
                 const subslice = data.subarray(input_idx, dataLength);
-                Module.HEAPU8.set(subslice, input_buf);
+                LZLib.HEAPU8.set(subslice, input_buf);
 
-                let write_ret = Module.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, dataLength - input_idx]);
+                let write_ret = LZLib.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, dataLength - input_idx]);
                 if (write_ret <= 0) {
-                  Module.ccall('free', null, ['number'], [input_buf]);
-                  Module.ccall('free', null, ['number'], [output_buf]);
+                  LZLib.ccall('free', null, ['number'], [input_buf]);
+                  LZLib.ccall('free', null, ['number'], [output_buf]);
                   throw new Error(`Failed to write final data input to decompressor: ${write_ret}`);
                 }
                 writing_to_decomp = false;
-                Module.ccall('LZ_decompress_finish', null, ['number'], [decoder]);
+                LZLib.ccall('LZ_decompress_finish', null, ['number'], [decoder]);
                 console.log("Finished writing to decompressor");
               } else {
                 const subslice = data.subarray(input_idx, input_idx + decompWriteSize);
-                Module.HEAPU8.set(subslice, input_buf);
+                LZLib.HEAPU8.set(subslice, input_buf);
 
-                let write_ret = Module.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, decompWriteSize]);
+                let write_ret = LZLib.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, decompWriteSize]);
                 if (write_ret <= 0) {
-                  Module.ccall('free', null, ['number'], [input_buf]);
-                  Module.ccall('free', null, ['number'], [output_buf]);
+                  LZLib.ccall('free', null, ['number'], [input_buf]);
+                  LZLib.ccall('free', null, ['number'], [output_buf]);
                   throw new Error(`Failed to write data input to decompressor: ${write_ret}`);
                 }
                 input_idx += write_ret;
                 if (input_idx > dataLength) {
-                  Module.ccall('free', null, ['number'], [input_buf]);
-                  Module.ccall('free', null, ['number'], [output_buf]);
+                  LZLib.ccall('free', null, ['number'], [input_buf]);
+                  LZLib.ccall('free', null, ['number'], [output_buf]);
                   throw new Error(`Invalid state, input_idx is too large: ${input_idx}`);
                 }
               }
             }
 
             if (reading_from_decomp) {
-              if (Module.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
+              if (LZLib.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
                 reading_from_decomp = false;
                 console.log("Finished reading from decompressor");
               } else {
-                let read_ret = Module.ccall('LZ_decompress_read', 'number', ['number', 'number', 'number'], [decoder, output_buf, output_buf_size]);
+                let read_ret = LZLib.ccall('LZ_decompress_read', 'number', ['number', 'number', 'number'], [decoder, output_buf, output_buf_size]);
                 if (read_ret < 0) {
-                  Module.ccall('free', null, ['number'], [input_buf]);
-                  Module.ccall('free', null, ['number'], [output_buf]);
-                  const dec_errno = Module.ccall('LZ_decompress_errno', 'number', ['number'], [decoder]);
+                  LZLib.ccall('free', null, ['number'], [input_buf]);
+                  LZLib.ccall('free', null, ['number'], [output_buf]);
+                  const dec_errno = LZLib.ccall('LZ_decompress_errno', 'number', ['number'], [decoder]);
                   throw new Error(`Failed to LZ_decompress_read: ${read_ret}, ${dec_errno}`);
                 } else if (read_ret === 0) {
-                  if (Module.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
+                  if (LZLib.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
                     reading_from_decomp = false;
                     console.log("Finished reading from decompressor");
                   } else {
-                    Module.ccall('free', null, ['number'], [input_buf]);
-                    Module.ccall('free', null, ['number'], [output_buf]);
+                    LZLib.ccall('free', null, ['number'], [input_buf]);
+                    LZLib.ccall('free', null, ['number'], [output_buf]);
                     throw new Error('Failed to LZ_decompress_read: zero');
                   }
                 }
 
                 if (read_ret > 0) {
-                  const str = Module.UTF8ToString(output_buf, read_ret, true);
+                  const str = LZLib.UTF8ToString(output_buf, read_ret, true);
                   output_text = output_text.concat(str);
                 }
               }
             }
           }
         } else {
-          let input_buf = Module.ccall('malloc', 'number', ['number'], [dataLength]);
+          let input_buf = LZLib.ccall('malloc', 'number', ['number'], [dataLength]);
           if (input_buf === 0) {
             throw new Error("Failed to malloc data input (small)");
           }
 
-          Module.HEAPU8.set(data, input_buf);
+          LZLib.HEAPU8.set(data, input_buf);
 
-          let write_ret = Module.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, dataLength]);
+          let write_ret = LZLib.ccall('LZ_decompress_write', 'number', ['number', 'number', 'number'], [decoder, input_buf, dataLength]);
           if (write_ret !== dataLength) {
-            Module.ccall('free', null, ['number'], [input_buf]);
-            Module.ccall('free', null, ['number'], [output_buf]);
+            LZLib.ccall('free', null, ['number'], [input_buf]);
+            LZLib.ccall('free', null, ['number'], [output_buf]);
             throw new Error(`Failed to write small data input to decompressor: ${write_ret}`);
           }
 
-          Module.ccall('LZ_decompress_finish', null, ['number'], [decoder]);
+          LZLib.ccall('LZ_decompress_finish', null, ['number'], [decoder]);
 
           while(true) {
-            let read_ret = Module.ccall('LZ_decompress_read', 'number', ['number', 'number', 'number'], [decoder, output_buf, output_buf_size]);
+            let read_ret = LZLib.ccall('LZ_decompress_read', 'number', ['number', 'number', 'number'], [decoder, output_buf, output_buf_size]);
             if (read_ret < 0) {
-              Module.ccall('free', null, ['number'], [input_buf]);
-              Module.ccall('free', null, ['number'], [output_buf]);
+              LZLib.ccall('free', null, ['number'], [input_buf]);
+              LZLib.ccall('free', null, ['number'], [output_buf]);
               throw new Error(`Failed to LZ_decompress_read (small): ${read_ret}`);
             } else if (read_ret === 0) {
-              if (Module.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
+              if (LZLib.ccall('LZ_decompress_finished', 'number', ['number'], [decoder]) === 1) {
                 break;
               } else {
-                Module.ccall('free', null, ['number'], [input_buf]);
-                Module.ccall('free', null, ['number'], [output_buf]);
+                LZLib.ccall('free', null, ['number'], [input_buf]);
+                LZLib.ccall('free', null, ['number'], [output_buf]);
                 throw new Error('LZ_decompress_finished not one');
               }
             }
 
-            const str = Module.UTF8ToString(output_buf, read_ret, true);
+            const str = LZLib.UTF8ToString(output_buf, read_ret, true);
             output_text = output_text.concat(str);
           }
         }
 
-        Module.ccall('free', null, ['number'], [input_buf]);
-        Module.ccall('free', null, ['number'], [output_buf]);
+        LZLib.ccall('free', null, ['number'], [input_buf]);
+        LZLib.ccall('free', null, ['number'], [output_buf]);
       } catch (error) {
         console.error(error.message);
       }
 
-      Module.ccall('LZ_decompress_close', 'number', ['number'], [decoder]);
+      LZLib.ccall('LZ_decompress_close', 'number', ['number'], [decoder]);
 
       //console.log(output_text);
       return output_text;
     }
 
-    Module.onRuntimeInitialized = function() {
-        console.log('This uses asciinema player, the source and license of which can be found here: https://github.com/asciinema/asciinema-player');
-        console.log('This uses pako:\n\
+    console.log('This uses asciinema player, the source and license of which can be found here: https://github.com/asciinema/asciinema-player');
+    console.log('This uses pako:\n\
 \n\
 The source and license of pako can be found here: https://github.com/nodeca/pako\n\
 \n\
@@ -253,28 +254,27 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\n\
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\n\
 THE SOFTWARE.\n\
 ');
-        console.log('This html/js uses lzlib: \n\
- \n\
+    console.log('This html/js uses lzlib: \n\
+\n\
 Lzlib - Compression library for the lzip format \n\
 Copyright (C) Antonio Diaz Diaz. \n\
- \n\
+\n\
 This library is free software. Redistribution and use in source and \n\
 binary forms, with or without modification, are permitted provided \n\
 that the following conditions are met: \n\
- \n\
+\n\
 1. Redistributions of source code must retain the above copyright \n\
 notice, this list of conditions, and the following disclaimer. \n\
- \n\
+\n\
 2. Redistributions in binary form must reproduce the above copyright \n\
 notice, this list of conditions, and the following disclaimer in the \n\
 documentation and/or other materials provided with the distribution. \n\
- \n\
+\n\
 This library is distributed in the hope that it will be useful, \n\
 but WITHOUT ANY WARRANTY; without even the implied warranty of \n\
 MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. \n\
 ');
-        AsciinemaPlayer.create({data: fetch_and_unlz_demo('demo.cast.lz')}, document.getElementById('demo'), {"fit": "both"});
-    }
+    AsciinemaPlayer.create({data: fetch_and_unlz_demo('demo.cast.lz')}, document.getElementById('demo'), {"fit": "both"});
   </script>
 </body>
 </html>
